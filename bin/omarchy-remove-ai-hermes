@@ -57,22 +57,12 @@ omarchy-pkg-drop hermes-desktop
 # The installer leaves a unit waiting to hand the app the Omarchy theme.
 systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
 
-# The mise CLI is the app's predecessor, not the app itself: Hermes Desktop takes
-# it over on install and runs its own runtime instead, so a copy still here is one
-# the app never superseded -- an interrupted install, or the terminal CLI from
-# before the app existed. Remove Hermes clears that too, scoped by the installer
-# to what Omarchy owns so a hermes the user set up themselves is left alone.
-# Tolerated here rather than fatal, so the ~/.hermes handling below still runs;
-# the failure is answered for at the end instead of being swallowed.
-cli_removed=true
-ensure_hermes_stopped
-omarchy-install-hermes-cli --remove || cli_removed=false
-
-# The app writes this when the runtime it provisions under ~/.hermes has landed,
-# and it is the only thing that tells that runtime apart from one the user
-# installed themselves -- the paths are the same either way. Without it the app
-# never got that far: a machine where it was installed but never launched still
-# has whatever was there before, and none of it is ours to delete unasked.
+# Upstream's installer writes this when the runtime under ~/.hermes has landed,
+# whether Omarchy ran it for the app or the app's own first launch did, and it
+# is the only thing that tells that runtime apart from one the user installed
+# themselves -- the paths are the same either way. Without it the install never
+# got that far: a machine where the package landed but nothing set Hermes up
+# still has whatever was there before, and none of it is ours to delete unasked.
 if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
   # The checkout and venv, its own uv, its own node. None of it is any use once
   # the app is gone, so it goes without asking; what the user made with the app
@@ -138,10 +128,4 @@ if [[ $data_removed == true ]]; then
 elif [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]]; then
   echo "Your chats, memories, and skills are still in ~/.hermes,"
   echo "and your connections and settings in ~/.config/Hermes."
-fi
-
-# The messages above still hold -- the app and its runtime are gone -- but a CLI
-# teardown that failed already said so on stderr, and that stands.
-if [[ $cli_removed == "false" ]]; then
-  exit 1
 fi

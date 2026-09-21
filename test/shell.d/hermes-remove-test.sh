@@ -24,15 +24,6 @@ cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 printf '%s\0' "$@" >>"$OMARCHY_TEST_DROP_LOG"
 SH
 
-# The CLI teardown is the installer's own, exercised in hermes-cli-test.sh; here
-# it is mocked to a logger so this test stays about what Remove Hermes does with
-# ~/.hermes, and to keep real mise out of a run with HOME pointed at a fixture.
-cat >"$mock_bin/omarchy-install-hermes-cli" <<'SH'
-#!/bin/bash
-printf '%s\0' "$@" >>"$OMARCHY_TEST_INSTALLER_LOG"
-exit "${OMARCHY_TEST_INSTALLER_STATUS:-0}"
-SH
-
 # The remover asks through gum whether the user's data should go too. The stub
 # answers "no" unless a test says otherwise, and logs every call: a real gum
 # would hang a test run, and one that answered "yes" on its own would be the
@@ -77,12 +68,9 @@ seed_install() {
 # </dev/null pins stdin off a terminal, so these runs exercise the
 # non-interactive path no matter where the suite itself is running.
 remove() {
-  : >"$test_tmp/installer-log"
   : >"$test_tmp/gum-log"
   : >"$test_tmp/systemctl-log"
   OMARCHY_TEST_DROP_LOG="$test_tmp/drop-log" \
-    OMARCHY_TEST_INSTALLER_LOG="$test_tmp/installer-log" \
-    OMARCHY_TEST_INSTALLER_STATUS="${OMARCHY_TEST_INSTALLER_STATUS:-0}" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     HOME="$test_home" PATH="$mock_bin:$PATH" \
@@ -92,11 +80,9 @@ remove() {
 # script(1) puts the remover on a pty, which is the only way -t 0 answers true
 # without a person at a real one; the stubbed gum then supplies the answer.
 remove_tty() {
-  : >"$test_tmp/installer-log"
   : >"$test_tmp/gum-log"
   : >"$test_tmp/systemctl-log"
   OMARCHY_TEST_DROP_LOG="$test_tmp/drop-log" \
-    OMARCHY_TEST_INSTALLER_LOG="$test_tmp/installer-log" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     OMARCHY_TEST_GUM_STATUS="${OMARCHY_TEST_GUM_STATUS:-1}" \
@@ -142,12 +128,6 @@ pass "removal keeps the user's data unasked when there is no terminal"
 [[ ! -e $test_home/.local/bin/hermes ]] || fail "the app's own hermes command is removed"
 pass "removal takes the command the app installed"
 
-# Removal also asks the installer to tear down a mise CLI the app superseded, so
-# a copy left from before the app took over does not linger once Hermes is gone.
-tr '\0' '\n' <"$test_tmp/installer-log" | grep -qx -- '--remove' ||
-  fail "removal asks the installer to tear down its own CLI"
-pass "removal tears down the mise CLI through the installer"
-
 # A hermes command the app did not write survives even when the app did install
 # a runtime of its own.
 seed_install
@@ -168,10 +148,6 @@ printf 'my local edit\n' >"$test_home/.hermes/hermes-agent/PATCH"
 printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
   >"$test_home/.local/bin/hermes"
 remove || fail "remove succeeds when the app never finished installing Hermes"
-# The stranded pre-desktop CLI is exactly the interrupted-install case, so the
-# teardown must be asked for here too, not only when the app's runtime landed.
-tr '\0' '\n' <"$test_tmp/installer-log" | grep -qx -- '--remove' ||
-  fail "removal tears down the CLI even when the app never finished installing"
 [[ -d $test_home/.hermes/hermes-agent ]] ||
   fail "a Hermes runtime the app never installed survives removal"
 [[ -f $test_home/.hermes/hermes-agent/PATCH ]] ||
@@ -235,17 +211,6 @@ OMARCHY_TEST_GUM_STATUS=0 remove_tty ||
   fail "a yes takes ~/.hermes whole when the marker never appeared"
 pass "removal honors a yes on the named paths without the marker"
 
-# A CLI teardown that fails must not stop the runtime handling, and must not be
-# papered over either: the data work still happens, and the failure reaches the
-# caller's exit code.
-seed_install
-printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
-  >"$test_home/.local/bin/hermes"
-OMARCHY_TEST_INSTALLER_STATUS=1 remove && fail "a failed CLI teardown surfaces in the exit code"
-[[ ! -d $test_home/.hermes/hermes-agent ]] ||
-  fail "a failed CLI teardown does not stop the runtime removal"
-pass "a failed CLI teardown is reported after the runtime is handled"
-
 # Real SQLite writers exercise the kernel's live/deleted file descriptors.
 # Package, service and confirmation commands remain confined to the mocks.
 python3 - "$test_tmp" <<'PY'
@@ -276,7 +241,7 @@ def setup(name):
     (home / '.config/Hermes').mkdir(parents=True)
     env = {**os.environ, 'HOME': str(home), 'PATH': f"{scratch / 'bin'}:/usr/bin:/bin",
            'OMARCHY_TEST_GUM_STATUS': '0'}
-    for key in ('DROP', 'INSTALLER', 'SYSTEMCTL', 'GUM'):
+    for key in ('DROP', 'SYSTEMCTL', 'GUM'):
         log = home / (key + '.log')
         log.touch()
         env['OMARCHY_TEST_' + key + '_LOG'] = str(log)
@@ -309,7 +274,7 @@ def blocked(result, home, runtime, child):
     assert 'Close Hermes' in result.stderr, result.stderr
     assert (runtime / '.hermes-bootstrap-complete').exists()
     assert all((home / (name + '.log')).stat().st_size == 0
-               for name in ('DROP', 'INSTALLER', 'SYSTEMCTL', 'GUM'))
+               for name in ('DROP', 'SYSTEMCTL', 'GUM'))
     assert child.poll() is None, 'remover must not kill sessions'
 
 for deleted in (False, True):
