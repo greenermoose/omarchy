@@ -1297,8 +1297,10 @@ Item {
 
       visible: root.tooltipShown && root.tooltipTarget !== null && root.tooltipText !== "" && root.targetBelongsToWindow(root.tooltipTarget, barWindow)
       color: "transparent"
-      implicitWidth: barWindow.scaleSafeSize(tooltipBubble.implicitWidth)
-      implicitHeight: barWindow.scaleSafeSize(tooltipBubble.implicitHeight)
+      // Window tracks the bubble; scale-safe sizing is on the bubble so the
+      // painted chrome (not empty transparent margin) covers whole physical px.
+      implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
+      implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
 
       anchor {
         id: tooltipAnchor
@@ -1340,8 +1342,8 @@ Item {
         // the inset Rectangle border does not eat the content budget (clips
         // the bottom edge on fractional scales such as 1.25×).
         readonly property var tooltipBorderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, Style.normalBorderWidth)
-        implicitWidth: tooltipLabel.implicitWidth
-        implicitHeight: tooltipLabel.implicitHeight
+        implicitWidth: barWindow.scaleSafeSize(tooltipLabel.implicitWidth)
+        implicitHeight: barWindow.scaleSafeSize(tooltipLabel.implicitHeight)
         color: Color.tooltip.background
         borderSpec: tooltipBorderSpec
         radius: Style.cornerRadius
@@ -1349,6 +1351,7 @@ Item {
         Text {
           id: tooltipLabel
           textFormat: Text.PlainText
+          anchors.centerIn: parent
           text: root.tooltipText
           color: Color.tooltip.text
           font.family: root.fontFamily
