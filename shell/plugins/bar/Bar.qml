@@ -1327,22 +1327,29 @@ Item {
 
       BorderSurface {
         id: tooltipBubble
-        implicitWidth: tooltipLabel.implicitWidth + 20
-        implicitHeight: tooltipLabel.implicitHeight + 14
+        // Size like PanelToolTip: border width is reserved in Text padding so
+        // the inset Rectangle border does not eat the content budget (clips
+        // the bottom edge on fractional scales such as 1.25×).
+        readonly property var tooltipBorderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, Style.normalBorderWidth)
+        implicitWidth: tooltipLabel.implicitWidth
+        implicitHeight: tooltipLabel.implicitHeight
         color: Color.tooltip.background
-        borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
+        borderSpec: tooltipBorderSpec
         radius: Style.cornerRadius
 
         Text {
           id: tooltipLabel
           textFormat: Text.PlainText
-          anchors.centerIn: parent
           text: root.tooltipText
           color: Color.tooltip.text
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
+          leftPadding: Border.left(tooltipBubble.tooltipBorderSpec) + Style.spacing.controlPaddingX
+          rightPadding: Border.right(tooltipBubble.tooltipBorderSpec) + Style.spacing.controlPaddingX
+          topPadding: Border.top(tooltipBubble.tooltipBorderSpec) + Style.spacing.controlPaddingY
+          bottomPadding: Border.bottom(tooltipBubble.tooltipBorderSpec) + Style.spacing.controlPaddingY
         }
       }
     }
