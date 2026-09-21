@@ -1234,6 +1234,15 @@ Item {
   component BarPanel: PanelWindow {
     id: barWindow
 
+    // Grow a logical size so size × devicePixelRatio is an integer physical
+    // pixel count. Fractional DPR (e.g. Dell 1.25×) otherwise truncates the
+    // popup buffer and clips a 1px tooltip border.
+    function scaleSafeSize(logical) {
+      var dpr = (barWindow.screen && barWindow.screen.devicePixelRatio > 0)
+                ? barWindow.screen.devicePixelRatio : 1
+      return Math.ceil(logical * dpr) / dpr
+    }
+
     // Hiding parks the bar just past its screen edge instead of unmapping it.
     // Unmapping frees the layer surface and the whole scene graph, so every
     // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
@@ -1288,8 +1297,8 @@ Item {
 
       visible: root.tooltipShown && root.tooltipTarget !== null && root.tooltipText !== "" && root.targetBelongsToWindow(root.tooltipTarget, barWindow)
       color: "transparent"
-      implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
-      implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
+      implicitWidth: barWindow.scaleSafeSize(tooltipBubble.implicitWidth)
+      implicitHeight: barWindow.scaleSafeSize(tooltipBubble.implicitHeight)
 
       anchor {
         id: tooltipAnchor
